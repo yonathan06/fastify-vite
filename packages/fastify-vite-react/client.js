@@ -2,34 +2,39 @@ const manifetch = require('manifetch')
 
 const { useLocation } = require('react-router-dom')
 const { useContext, useState, useEffect, useRef } = require('react')
-const { Context, ContextProvider } = require('./context')
+const { Context } = require('./context')
 
 const dataKey = '$data'
 const globalDataKey = '$global'
+const noop = () => {}
 const isServer = typeof window === 'undefined'
 
-function useIsomorphic (getData, useData) {
-  const { context } = useContext(Context)
-  const firstRender = useRef(true)
+function onRouterChange (ctx, callback) {
   if (isServer) {
-    return context
-  } else if (getData && useData) {
-    const [state, setter] = useState(context)
-    const location = useLocation()
-    useEffect(() => {
-      if (firstRender.current) {
-        useData(context[dataKey])
-        firstRender.current = false
-        return
-      }
-      setter({ ...state, $loading: false })
-      getData(context).then(($data) => {
-        setter({ ...state, $loading: false })
-        useData($data)
-      })
-    }, [location])
+    return
   }
-  return context
+  const firstRender = useRef(true)  
+  const effectWatcher = [useLocation()]
+  useEffect(() => {
+    ctx.update({ $loading: false })
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    ctx.update({ $loading: true })
+    callback().then(() => ctx.update({ $loading: false }))
+  }, effectWatcher)
+}
+
+function useHydration () {
+  const { context } = useContext(Context)
+  const [ state, update ] = useState(context)
+  if (!isServer) {
+    state.update = (prop) => update({ ...state, ...props })
+  } else {
+    state.update = noop
+  }
+  return state
 }
 
 function hydrate (app) {
@@ -56,5 +61,4 @@ module.exports = {
   isServer,
   useIsomorphic,
   hydrate,
-  ContextProvider,
 }

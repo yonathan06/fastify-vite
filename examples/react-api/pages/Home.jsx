@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useIsomorphic, isServer } from 'fastify-vite-react/client'
+import { useHydration, onRouteChange } from 'fastify-vite-react/client'
 
 export const path = '/'
 
+// This function is loaded on the server and executed before the component
+// useHydration() will contain its return value when the component runs
 export async function getData ({ $api }) {
   const msg = `hello from ${isServer ? 'server' : 'client'}`
   const { json } = await $api.echo({ msg })
@@ -10,12 +12,13 @@ export async function getData ({ $api }) {
 }
 
 export default function Home(props) {  
-  let [msg, setMsg] = useState(null)
+  const ctx = useHydration()
 
-  // If first rendered on the server, just rehydrates on the client
-  const ctx = useIsomorphic(getData, (json) => {
-    // If first rendered on the client, does a fresh $api fetch()
-    // And pass the result of getData() to this callback function
+  const [msg, setMsg] = useState(null)
+  const [count, setCount] = useState(0)
+
+  onRouteChange(ctx, async () => {
+    const { json } = await getData(ctx)
     setMsg(json.msg)
   })
 
@@ -26,9 +29,7 @@ export default function Home(props) {
     setCount(count + 1)
   }
 
-  let [count, setCount] = useState(0)
-
-  // ctx.$loading is set automatically before and after await getData()
+  // ctx.$loading is set automatically for onRouteChange
   if (ctx.$loading) {
     <div>
       <h1>Loading</h1>
